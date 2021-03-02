@@ -52,7 +52,7 @@ def reduce_to_pandas(outfile, dask_client):
 
     # Group by cohorts and get the all the users
     df = df.groupby(["day", "user"]).sum().reset_index()
-    df = df[["day", "user"]]
+    df = df.loc[(df["bytes_up"] != 0) & (df["bytes_down"] != 0), ["day", "user"]]
 
     infra.pd.clean_write_parquet(df.compute(), outfile)
 
@@ -61,7 +61,7 @@ def make_plot(infile):
     registered_users = infra.pd.read_parquet("data/derived/early_registered_users.parquet")
     registered_users = registered_users.assign(start=infra.constants.MIN_DATE)
 
-    transactions = pd.read_csv("data/clean/first_time_user_transactions.csv")[["start", "user"]]
+    transactions = pd.read_csv("data/derived/first_time_user_transactions.csv")[["start", "user"]]
     transactions = transactions.astype({
         'start': 'datetime64[ns]',
         "user": "object",
@@ -83,6 +83,7 @@ def make_plot(infile):
     ).fillna(method="ffill").dropna()
 
     user_days = infra.pd.read_parquet(infile)
+    print(user_days.head(80))
 
     active_users = user_days.groupby("day")["user"].nunique()
     active_users = active_users.to_frame().reset_index()
@@ -147,6 +148,7 @@ def make_plot(infile):
         "Unique Weekly Online": 3,
         "Unique Daily Online": 4,
     }
+    print(users)
     # Mergesort is stablely implemented : )
     users = users.sort_values(
         ["user_type"],
@@ -204,6 +206,9 @@ if __name__ == "__main__":
 
     if platform.altair_support:
         print("Running vis tasks")
+        pd.set_option('display.max_columns', None)
+        pd.set_option('display.width', None)
+        pd.set_option('display.max_rows', 80)
         make_plot(graph_temporary_file)
 
     print("Done!")
